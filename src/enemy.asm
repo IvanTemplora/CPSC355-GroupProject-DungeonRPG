@@ -28,3 +28,12 @@ generate_enemy:
     //x0 should be the random number, so no need to set it to anything else
     ldp x29, x30, [sp], 16
     ret
+
+.global get_enemy_name
+//takes an enemy type and returns the address to it's name as a string
+get_enemy_name:
+    mov x9, x0 //x9 = enemy type
+    ldr x10, =enemies //x10 = address of name addresses
+    ldr x0, [x10, x9, lsl 3] // x0 = address of string at enemy type
+    ret
+    
