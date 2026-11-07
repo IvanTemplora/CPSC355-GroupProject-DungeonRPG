@@ -35,8 +35,6 @@ get_enemy_name:
     ldr x10, =enemies //x10 = address of name addresses
     ldr x0, [x10, x9, lsl 3] // x0 = address of string at enemy type
     ret
-    
-
 
 .global attack
 //Takes an enemy type, and an armor type/bonus and returns the damage done by the enemy
@@ -59,6 +57,8 @@ add w0, w10, 1 // w0 = base damage + (enemy_type) / w9 + 1
 ldr w10, [x29, 20] //load armor bonus from fp + 16
 sub w0, w0, w10
 
+cmp w0, 0 // w0 < 0
 csel w0, wzr, w0, lt //w0 = (w0 < 0) ? 0 : w0, ensures that negative damage is not dealt
 ldp x29, x30, [sp], 32
 ret
+
