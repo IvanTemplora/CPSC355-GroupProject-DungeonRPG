@@ -62,3 +62,10 @@ csel w0, wzr, w0, lt //w0 = (w0 < 0) ? 0 : w0, ensures that negative damage is n
 ldp x29, x30, [sp], 32
 ret
 
+.global get_max_health
+//Takes an enemy type and returns the initial max health of the enemy
+get_max_health:
+    mov x9, 3
+    mul x0, x9, x0 //x0 = enemy type * multiplier
+    add x0, 2 //enemy type * multiplier + bonus = health
+    ret //max_health in x0
