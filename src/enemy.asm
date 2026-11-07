@@ -13,6 +13,10 @@ enemies: .dword enemy1, enemy2, enemy3, enemy4, enemy5, enemy6, enemy7, enemy8 /
 
 enemy_types = 8
 
+
+.text
+.balign 4
+
 .global generate_enemy
 generate_enemy:
     stp x29, x30, [sp, -16]!
