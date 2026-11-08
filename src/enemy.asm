@@ -67,7 +67,7 @@ ret
 get_max_health:
     mov x9, 3
     mul x0, x9, x0 //x0 = enemy type * multiplier
-    add x0, 2 //enemy type * multiplier + bonus = health
+    add x0, x0, 2 //enemy type * multiplier + bonus = health
     ret //max_health in x0
 
 .global take_damage
@@ -75,7 +75,7 @@ get_max_health:
 take_damage:
     //get armor bonus
     mov w9, 2
-    udiv w10, w0, 2 //enemy_type / divisor = armor bonus
+    udiv w10, w0, w9 //enemy_type / divisor = armor bonus
 
     sub x9, x2, x10 //player damage - armor bonus = total damage
     cmp x9, 0 //total damage < 0
