@@ -88,3 +88,11 @@ take_damage:
     mov x0, x1 //return new health
     ret
     
+.global is_alive
+//takes an enemy's health and returns a 1 if the health is greater than 0, 0 otherwise
+is_alive:
+cmp x0, 0 //x0 == 0
+mov x9, 1 //flag value for enemy being alive
+csel x0, xzr, x9, eq //x0 = (x0 == 0) ? 0 : 1
+ret
+
