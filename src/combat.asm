@@ -2,8 +2,8 @@
 enemy_dmg_fmt: .string "The %s was hit. It's health is now %d.\n"
 player_dmg_fmt: .string "The %s's attack lands. Your health is now %d.\n"
 
-enemy_dead: .byte 0
-player_dead: .byte 0
+enemy_alive: .byte 0
+player_alive: .byte 0
 player_flee: .byte 0
 
 enemy_type_s = 16
@@ -12,10 +12,25 @@ alloc = -(16 + 8) & -16
 dealloc = -alloc
 
 .text
+
+//Takes an enemy's health and updates combat relevant flags
+update_flags:
+stp x29, x30, [sp, -16]!
+mov x29, sp
+
+bl is_enemy_alive //assume x0 = enemy's health when subroutine is called
+ldr x9, =enemy_alive
+strb w0, [x9] //set enemy_alive flag
+
+bl player_alive 
+ldr x9, =player_alive
+strb w0, [x9] //set player_alive flag, x0 = whether player is alive or not
+
+mov x0, 0
+ldp x29, x30, [sp], 16
+ret
+
 .balign 4
-
-
-
 .global combat
 //main combat loop, assume enemy type was passed in with x0, and enemy health with x1
 combat:
@@ -33,23 +48,20 @@ b.eq combat_done
 
 
 
-
 combat_done:
-
 mov x0, 0
 ldp x29, x30, [sp], dealloc
 ret
 
-//takes an enemy's health and determines if combat loop should end. If either the player or enemy is dead, a 1 is returned, else 0 is returned.
+//Checks status flags and determines if combat is over. Returns 1 if either enemy is dead or player is dead, 0 otherwise
 is_combat_over:
-stp x29, x30, [sp, -32]!
-mov x29, sp
+ldr x9, =enemy_alive
+ldrb w10, [x9] //w10 = is enemy alive
 
-bl is_enemy_alive //assume enemy's health is in x0
-str x0, [x29, 16] //store flag for whether enemy is alive in fp + 16
-bl is_player_alive
+ldr x9, =player_alive
+ldrb w11, [x9] //w11 = is player alive
 
-ldr x9, [x29, 16] //load flag for whether enemy is alive
-xor x0, x9, x0 //x0 = is_player_alive xor is_enemy_alive
-ldp x29, x30, [sp] 32
+and w9, w10, w11 //x9 = player_alive & enemy_alive
+mvn w0, w9 //w0 = ~(player_alive & enemy_alive)
+
 ret
