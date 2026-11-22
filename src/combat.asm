@@ -53,7 +53,7 @@ ret
 
 
 player_attack:
-stp x29, x30, [sp, -32]!
+stp x29, x30, [sp, -48]!
 mov x29, sp
 str x19, [x29, 16] //store value in x19 on stack
 mov x19, x0 //x19 = enemy type
@@ -62,17 +62,29 @@ str x20, [x29, 24] //store value in x20 on stack
 mov x20, x1 //x20 = enemy health
 
 bl get_player_damage
-mov x2, x0 //pass in damage done by player
+str x21, [x29, 32] //store value in x21 on stack
+mov x21, x0 //x21 = damage done by player
+
+mov x2, x21 //pass in damage done by player
 mov x0, x19 //pass in enemy type
 mov x1, x20 //pass in enemy health
 bl take_damage //enemy take_damage
+mov x20, x0 //x20 = new enemy health
 
+bl get_enemy_name //get address of enemy name as string
+ldr x1, [x0] //load enemy as string
+ldr x0, =enemy_dmg_fmt
+mov x2, x20 // pass in new enemy health
+bl printf
+
+mov x0, x20 //return new enemy health
 ldr x19, [x29, 16] //restore x19
 ldr x20, [x29, 24] //restore x20
+ldr x21, [x29, 32] //restore x21
 
-mov x0, 
 ldp x29, x30, [sp] 32
 ret
+
 
 
 //Checks status flags and determines if combat is over. Returns 1 if either enemy is dead or player is dead, 0 otherwise
