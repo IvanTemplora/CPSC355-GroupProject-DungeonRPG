@@ -2,13 +2,13 @@
 enemy_dmg_fmt: .string "The %s was hit. It's health is now %d.\n"
 player_dmg_fmt: .string "The %s's attack lands. Your health is now %d.\n"
 
-enemy_alive: .byte 0
-player_alive: .byte 0
-player_flee: .byte 0
+enemy_alive: .byte 0 //flag for enemy being alive
+player_alive: .byte 0 //flag for enemy being dead
+player_flee: .byte 0 //flag for player fleeing
 
 enemy_type_s = 16
 enemy_health_s = 20
-alloc = -(16 + 8) & -16
+alloc = -(16 + 8) & -16 //4 bytes for enemy type, 4 bytes for enemy health
 dealloc = -alloc
 
 .text
@@ -46,12 +46,34 @@ bl is_combat_over
 cmp x0, 1 //flag == 1
 b.eq combat_done
 
-
-
 combat_done:
 mov x0, 0
 ldp x29, x30, [sp], dealloc
 ret
+
+
+player_attack:
+stp x29, x30, [sp, -32]!
+mov x29, sp
+str x19, [x29, 16] //store value in x19 on stack
+mov x19, x0 //x19 = enemy type
+
+str x20, [x29, 24] //store value in x20 on stack
+mov x20, x1 //x20 = enemy health
+
+bl get_player_damage
+mov x2, x0 //pass in damage done by player
+mov x0, x19 //pass in enemy type
+mov x1, x20 //pass in enemy health
+bl take_damage //enemy take_damage
+
+ldr x19, [x29, 16] //restore x19
+ldr x20, [x29, 24] //restore x20
+
+mov x0, 
+ldp x29, x30, [sp] 32
+ret
+
 
 //Checks status flags and determines if combat is over. Returns 1 if either enemy is dead or player is dead, 0 otherwise
 is_combat_over:
