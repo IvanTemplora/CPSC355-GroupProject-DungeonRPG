@@ -33,7 +33,7 @@ generate_enemy:
 get_enemy_name:
     mov x9, x0 //x9 = enemy type
     ldr x10, =enemies //x10 = address of name addresses
-    ldr x0, [x10, x9, sxtw 3] // x0 = address of string at enemy type
+    ldr x0, [x10, x9, lsl 3] // x0 = address of string at enemy type
     ret
 
 .global attack

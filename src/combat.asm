@@ -51,7 +51,7 @@ mov x0, 0
 ldp x29, x30, [sp], dealloc
 ret
 
-
+//Takes an enemy's type, and current health and returns the enemy's new health after the player has attacked the enemy
 player_attack:
 stp x29, x30, [sp, -48]!
 mov x29, sp
@@ -65,14 +65,15 @@ bl get_player_damage
 str x21, [x29, 32] //store value in x21 on stack
 mov x21, x0 //x21 = damage done by player
 
-mov x2, x21 //pass in damage done by player
 mov x0, x19 //pass in enemy type
 mov x1, x20 //pass in enemy health
+mov x2, x21 //pass in damage done by player
 bl take_damage //enemy take_damage
 mov x20, x0 //x20 = new enemy health
 
+mov x0, x19 //pass in enemy type
 bl get_enemy_name //get address of enemy name as string
-ldr x1, [x0] //load enemy as string
+mov x1, x0//load enemy as string
 ldr x0, =enemy_dmg_fmt
 mov x2, x20 // pass in new enemy health
 bl printf
@@ -82,7 +83,7 @@ ldr x19, [x29, 16] //restore x19
 ldr x20, [x29, 24] //restore x20
 ldr x21, [x29, 32] //restore x21
 
-ldp x29, x30, [sp] 32
+ldp x29, x30, [sp], 48
 ret
 
 
