@@ -36,9 +36,9 @@ get_enemy_name:
     ldr x0, [x10, x9, lsl 3] // x0 = address of string at enemy type
     ret
 
-.global attack
+.global enemy_attack
 //Takes an enemy type, and an armor type/bonus and returns the damage done by the enemy
-attack:
+enemy_attack:
 stp x29, x30, [sp, -32]!
 mov x29, sp
 

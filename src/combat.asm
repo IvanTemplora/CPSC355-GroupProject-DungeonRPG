@@ -51,7 +51,49 @@ mov x0, 0
 ldp x29, x30, [sp], dealloc
 ret
 
+
+//Takes an enemy type, and determines the amount of damage done to the player (including reductions based on armor bonus). Print's player's new health
+//called combat_enemy_attack to avoid naming with collision with subroutine in enemy.asm
+.balign 4
+.global combat_enemy_attack
+combat_enemy_attack:
+stp x29, x30, [sp, -48]!
+mov x29, sp
+str x19, [x29, 16] //store value in x19 on stack
+mov x19, x0 //x19 = enemy type
+
+bl get_player_defence
+mov x1, x0 //x1 = player armour bonus
+mov x0, x19 //x0 = enemy type
+bl enemy_attack 
+
+bl player_take_damage
+str x20, [x29, 24] //store value in x20 on stack
+mov x20, x0 //x20 = damage done by enemy
+
+mov x0, x19
+bl get_player_curr_health
+str x21, [x29, 32] //store value in x21 on stack
+mov w21, w0 //w21 = player's current health
+
+mov x0, x19 //x0 = enemy type
+bl get_enemy_name
+mov x1, x0 //x1 = enemy's name as string
+mov w2, w21 //pass in player's current health
+ldr x0, =player_dmg_fmt
+bl printf
+
+ldr x19, [x29, 16] //restore x19
+ldr x20, [x29, 24] //restore x20
+ldr x21, [x29, 32] //restore x21
+
+ldp x29, x30, [sp], 48
+ret
+
+
 //Takes an enemy's type, and current health and returns the enemy's new health after the player has attacked the enemy
+.balign 4
+.global player_attack
 player_attack:
 stp x29, x30, [sp, -48]!
 mov x29, sp
@@ -73,7 +115,7 @@ mov x20, x0 //x20 = new enemy health
 
 mov x0, x19 //pass in enemy type
 bl get_enemy_name //get address of enemy name as string
-mov x1, x0//load enemy as string
+mov x1, x0//load enemy name as string
 ldr x0, =enemy_dmg_fmt
 mov x2, x20 // pass in new enemy health
 bl printf
