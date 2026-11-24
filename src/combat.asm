@@ -108,9 +108,8 @@ ret
 .balign 4
 .global combat_player_heal
 combat_player_heal:
-stp x29, x30, [sp, -32]!
+stp x29, x30, [sp, -16]!
 mov x29, sp
-
 
 bl bag_use_potion //assume slot number is in x0
 bl player_heal //currently does not exist
@@ -120,7 +119,7 @@ mov w1, w0 //w1 = player current health
 ldr x0, =player_heal_fmt
 bl printf
 
-ldp x29, x30, [sp], 32
+ldp x29, x30, [sp], 16
 ret
 
 //Checks status flags and determines if combat is over. Returns 1 if either enemy is dead or player is dead, 0 otherwise
