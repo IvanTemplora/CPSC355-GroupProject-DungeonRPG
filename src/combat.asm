@@ -30,28 +30,6 @@ mov x0, 0
 ldp x29, x30, [sp], 16
 ret
 
-.balign 4
-.global combat
-//main combat loop, assume enemy type was passed in with x0, and enemy health with x1
-combat:
-stp x29, x30, [sp, alloc]!
-mov x29, sp
-
-str x0, [x29, enemy_type_s] //store enemy type in fp + 16
-str x1, [x29, enemy_health_s] //store enemy health in fp + 20, should be max health to start
-
-combat_loop:
-ldr x0, [x29, enemy_health_s] //load enemy health
-bl is_combat_over
-cmp x0, 1 //flag == 1
-b.eq combat_done
-
-combat_done:
-mov x0, 0
-ldp x29, x30, [sp], dealloc
-ret
-
-
 //Takes an enemy type, and determines the amount of damage done to the player (including reductions based on armor bonus). Print's player's new health
 //called combat_enemy_attack to avoid naming with collision with subroutine in enemy.asm
 .balign 4
