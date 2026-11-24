@@ -1,19 +1,18 @@
 .data
 enemy_dmg_fmt: .string "The %s was hit. It's health is now %d.\n"
 player_dmg_fmt: .string "The %s's attack lands. Your health is now %d.\n"
+player_heal_fmt: .string "You used a potion to heal yourself. Your health is now %d.\n"
 
 enemy_alive: .byte 0 //flag for enemy being alive
 player_alive: .byte 0 //flag for enemy being dead
 player_flee: .byte 0 //flag for player fleeing
 
-enemy_type_s = 16
-enemy_health_s = 20
-alloc = -(16 + 8) & -16 //4 bytes for enemy type, 4 bytes for enemy health
-dealloc = -alloc
 
 .text
 
 //Takes an enemy's health and updates combat relevant flags
+.balign 4
+.global update_flags
 update_flags:
 stp x29, x30, [sp, -16]!
 mov x29, sp
@@ -68,11 +67,10 @@ ldr x21, [x29, 32] //restore x21
 ldp x29, x30, [sp], 48
 ret
 
-
 //Takes an enemy's type, and current health and returns the enemy's new health after the player has attacked the enemy
 .balign 4
-.global player_attack
-player_attack:
+.global combat_player_attack
+combat_player_attack:
 stp x29, x30, [sp, -48]!
 mov x29, sp
 str x19, [x29, 16] //store value in x19 on stack
@@ -106,9 +104,28 @@ ldr x21, [x29, 32] //restore x21
 ldp x29, x30, [sp], 48
 ret
 
+//Takes a bag slot number (1-4) and heals the player then prints the player's new health
+.balign 4
+.global combat_player_heal
+combat_player_heal:
+stp x29, x30, [sp, -32]!
+mov x29, sp
 
+
+bl bag_use_potion //assume slot number is in x0
+bl player_heal //currently does not exist
+
+bl get_player_curr_health
+mov w1, w0 //w1 = player current health
+ldr x0, =player_heal_fmt
+bl printf
+
+ldp x29, x30, [sp], 32
+ret
 
 //Checks status flags and determines if combat is over. Returns 1 if either enemy is dead or player is dead, 0 otherwise
+.balign 4
+.global is_combat_over
 is_combat_over:
 ldr x9, =enemy_alive
 ldrb w10, [x9] //w10 = is enemy alive
