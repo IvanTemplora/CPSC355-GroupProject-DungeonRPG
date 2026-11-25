@@ -9,11 +9,88 @@ player.asm to keep track of; this file just holds item info
 - any item of type 0 always means nothing; weapon 0 is fists, 
 armour 0 means no armour equipped, potion 0 is empty slot
 
-- call get_weapon_damage when calculating player attack damage
+FUNCTIONS:
+- call get_weapon_damage when calculating player attack damage;
+        give it the weapon type index in w0 and bonus damage is 
+        returned in w0 which you can add to base dmg
+
+            mov     w0, w19
+            bl      get_weapon_damage
+            add     w21, w21, w0
+
 - call get_armour_value when calculating damage player is taking
-- other callable functions: get_weapon_name, get_weapon_damage, 
-get_armour_name, get_armour_value, get_potion_name, get_potion_heal,
-bag_wipe, bag_add_potion, bag_use_potion and bag_print */
+        give it the armour type index in w0 and damage blocked is 
+        returned in w0 which you can sub from dmg taken
+
+            mov     w0, w20
+            bl      get_armour_value
+            sub     w21, w21, w0
+
+- call get_potion_heal to know how much HP a potion heals;
+        give it the potion type index in w0 and this 
+        returns the amount of HP the potion heals in w0,
+        but doesnt do the healing
+
+            mov     w0, 2
+            bl      get_potion_heal
+
+- call get_armour_name, get_weapon_name when printing the equpped items
+        these return addresses of name strings in x0 that can be passed to %s
+        just give the item type index in w0
+
+            mov     w0, w19
+            bl      get_weapon_name
+            mov     x1, x0
+            ldr     x0, =weapon_fmt
+            bl      printf
+
+- call loot_armour, loot_potion, loot_weapon for item drops
+        returns a random item type in w0, you can call after a player wins
+        a fight, just give it the highest item type index you want to be
+        able to roll. You can increase the highest possible item type to
+        as the player progresses so they can unlock better items
+
+            mov     w0, 3
+            bl      loot_weapon
+            mov     w19, w0
+
+- call bag_add_potion when the player picks up a potion
+        put either 1 or 2 in w0 representing potion types 1 or 2, 
+        and the function will return the slot that the potion went
+        into (1-4) or -1 if the bag is full, in w0 
+
+            mov     w0, 2
+            bl      loot_potion
+            bl      bag_add_potion
+            cmp     w0, -1
+            b.eq    bag_is_full
+
+- call bag_use_potion when the player wants to drink a potion
+        this function doesnt receive the input from the player
+        directly, put player input (bag slot of their choice 1-4) 
+        in w0, and the function will empty that slot and return
+        how much HP the potion heals in w0. This function does not
+        do the healing, just returns how much health to add to player.
+
+            ldr     x0, =slot_fmt
+            ldr     x1, =typed_slot_m
+            bl      scanf
+            ldr     x9, =typed_slot_m
+            ldr     w0, [x9]
+            bl      bag_use_potion
+            add     w22, w22, w0
+
+- call bag_print to print the contents of the bag with slot numbers
+        no input or output other than printed lines; you could call
+        this right before bag_use_potion when the player wants to
+        drink so they can see the slot numbers and bag contents before
+        choosing a potion to drink
+
+- call bag_wipe to make the bag empty;
+        no input or output, you could use this when the game itself
+        restarts while the program is still running (if theres a 
+        respawn mechanic or something) or if you just want to troll
+        the player */
 
 define(fp, x29)
 define(lr, x30)
@@ -22,13 +99,25 @@ define(bag_address_reg, x10)
 define(slot_index_reg, w11)
 define(potion_in_slot_reg, w12)
 
+define(type_count_reg, w1) // holds given item type count
+// holds biggest type index value (type count minus 1) for RNG bounds
+define(highest_valid_type_reg, w2)
+
 BAG_SLOTS = 4
 NO_POTION = 0
 BAG_FULL = -1
 
-pb_slot_s = 16
-pb_alloc = -(16 + 4) & -16
-pb_dealloc = -pb_alloc
+// used by loot roll functions as a boundary for RNG
+WEAPON_TYPE_COUNT = 4
+ARMOUR_TYPES_COUNT = 4
+POTION_TYPES_COUNT = 3
+
+potion_bag_slot_s = 16
+potion_bag_alloc = -(16 + 4) & -16
+potion_bag_dealloc = -potion_bag_alloc
+
+loot_item_type_alloc = -16
+loot_item_type_dealloc = -loot_item_type_alloc
 
     .text
 fists_name_m:        .string "Fists"
@@ -222,18 +311,18 @@ x11, x12, and printf may overwrite any of x0-x18 */
         .balign 4
         .global bag_print
 bag_print:
-        stp     fp, lr, [sp, pb_alloc]!
+        stp     fp, lr, [sp, potion_bag_alloc]!
         mov     fp, sp
 
         ldr     x0, =bag_header_fmt
         bl      printf
 
-        str     wzr, [fp, pb_slot_s]
+        str     wzr, [fp, potion_bag_slot_s]
 
-pb_test:
-        ldr     slot_index_reg, [fp, pb_slot_s]
+potion_bag_test:
+        ldr     slot_index_reg, [fp, potion_bag_slot_s]
         cmp     slot_index_reg, BAG_SLOTS
-        b.ge    pb_done
+        b.ge    potion_bag_done
         ldr     bag_address_reg, =bag_m
 
 // read potion type, retrieve potion name for printing
@@ -245,11 +334,72 @@ pb_test:
         ldr     x0, =bag_slot_fmt
         bl      printf
 
-        ldr     slot_index_reg, [fp, pb_slot_s]
+        ldr     slot_index_reg, [fp, potion_bag_slot_s]
         add     slot_index_reg, slot_index_reg, 1
-        str     slot_index_reg, [fp, pb_slot_s]
-        b       pb_test
+        str     slot_index_reg, [fp, potion_bag_slot_s]
+        b       potion_bag_test
 
-pb_done:
-        ldp     fp, lr, [sp], pb_dealloc
+potion_bag_done:
+        ldp     fp, lr, [sp], potion_bag_dealloc
+        ret
+
+/* loot drop functions (loot_weapon, loot_armour, loot_potion)
+each loot function randomly picks an item from their respective
+item category. Input is the highest item type you want the player
+to be able to get, you could make it so that the player can only
+get the best item types as the game goes on. Output is an item
+type index from 1 to the highest allowed item type specified.
+Overwrites w0, w1, w2, get_rand_num_under_n can overwrite any of x0-x18*/
+        .balign 4
+        .global loot_weapon
+loot_weapon:
+        mov     type_count_reg, WEAPON_TYPE_COUNT
+        b       loot_item_type
+
+        .balign 4
+        .global loot_armour
+loot_armour:
+        mov     type_count_reg, ARMOUR_TYPES_COUNT
+        b       loot_item_type
+
+        .balign 4
+        .global loot_potion
+loot_potion:
+        mov     type_count_reg, POTION_TYPES_COUNT
+        b       loot_item_type
+
+/* fixes the input number so it is a valid item type index and randomly
+chooses a number below it. The chosen number is incremented
+by 1 so that the result is not 0 and so that the maximum
+allowed number can be rolled. Input is the upper limit in w0,
+which if too large or too small is fixed in this function, and
+w1 which is the amount of types the item has. Output is a random
+type index in w0, anywhere from 1 to the upper limit. 0 cannot
+be rolled since that indicates no item. Overwrites w0, w2, 
+and get_rand_num_under_n can overwrite x0-x18 */
+        .balign 4
+loot_item_type:
+        stp     fp, lr, [sp, loot_item_type_alloc]!
+        mov     fp, sp
+
+/* highest possible item type is item type count minus 1 since
+we start from 0; if the caller asks for a higher number, lower
+it to the highest possible item type. */
+        sub     highest_valid_type_reg, type_count_reg, 1
+        cmp     w0, highest_valid_type_reg
+        b.le    loot_item_type_check_low
+        mov     w0, highest_valid_type_reg
+
+/* anything lower than 1 becomes 1; get_rand_num_under_n only handles
+1 and above, so if n is 0 or less it returns garbage. */
+loot_item_type_check_low:
+        cmp     w0, 1
+        b.ge    loot_item_type_roll
+        mov     w0, 1
+
+loot_item_type_roll:
+        bl      get_rand_num_under_n
+        add     w0, w0, 1
+
+        ldp     fp, lr, [sp], loot_item_type_dealloc
         ret
