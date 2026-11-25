@@ -35,6 +35,7 @@ player_armour:          .word 0
 
 weapon_change_fmt:      .string "Weapon changed to %s\n"
 armour_change_fmt:      .string "Armour changed to %s\n"
+level_up_fmt:           .string "Player has leveled up!"
 
     .text
     .balign 4
@@ -203,4 +204,32 @@ player_change_armour:
 
     ldp     fp, lr, [sp], 16
     mov     w0, #0
+    ret
+
+player_level_up:
+    ldr     x9, =player_max_health
+    ldr     w10, [x9]
+    add     w10, w10, #10
+    str     w10, [x9]
+
+    ldr     x9, =player_current_health
+    ldr     w10, [x9]
+    add     w10, w10, #2
+    str     w10, [x9]
+
+    ldr     x9, =player_level
+    ldr     w10, [x9]
+    add     w10, w10, #1
+    str     w10, [x9]
+
+    ldr     x9, =player_base_damage
+    ldr     w10, [x9]
+    add     w10, w10, #3
+    str     w10, [x9]
+
+    ldr     x9, =player_base_defence
+    ldr     w10, [x9]
+    add     w10, w10, #2
+    str     w10, [x9]
+
     ret
