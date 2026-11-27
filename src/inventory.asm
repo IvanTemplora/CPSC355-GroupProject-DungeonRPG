@@ -3,10 +3,16 @@
 - item bag (only holds potions); 4 int array in .bss
 - bag functions (these are the only things that can 
 interact with the bag)
+- equipped items and equip functions
+- loot drop functions
 
-- equipped items (armour, weapons) are plain ints for
-player.asm to keep track of; this file just holds item info
-- any item of type 0 always means nothing; weapon 0 is fists, 
+- there is an array of item stats and item names for each category
+(weapons, armour, potions). These arrays are all parallel meaning
+the index of, say, the sword (which is 3), corresponds to the sword
+bonus damage in the array that holds weapon stats and the name
+of the sword in the array that holds weapon names. I call this index
+the item type index.
+- any item of type index 0 always means nothing; weapon 0 is fists, 
 armour 0 means no armour equipped, potion 0 is empty slot
 
 FUNCTIONS:
@@ -14,7 +20,7 @@ FUNCTIONS:
         give it the weapon type index in w0 and bonus damage is 
         returned in w0 which you can add to base dmg
 
-            mov     w0, w19
+            bl      get_equipped_weapon
             bl      get_weapon_damage
             add     w21, w21, w0
 
@@ -22,7 +28,26 @@ FUNCTIONS:
         give it the armour type index in w0 and damage blocked is 
         returned in w0 which you can sub from dmg taken
 
-            mov     w0, w20
+            bl      get_equipped_armour
+            bl      get_armour_value
+            sub     w21, w21, w0
+
+- call equip_weapon_if_better or equip_armour_if_better after a loot drop;
+        give these functions the dropped item type index in w0. They only
+        equip the item if its better than what the player already has. They
+        return the item type index of what the player is wearing after the
+        function in w0.
+
+            mov     w0, 3
+            bl      loot_armour
+            bl      equip_armour_if_better
+
+- call get_equipped_weapon or get_equipped_armour when you want the item
+        type index of whatever the player currently has equipped. These
+        dont take input, and they return the item type index in w0 which
+        you can pass to armour or weapon get functions
+
+            bl      get_equipped_armour
             bl      get_armour_value
             sub     w21, w21, w0
 
@@ -38,7 +63,7 @@ FUNCTIONS:
         these return addresses of name strings in x0 that can be passed to %s
         just give the item type index in w0
 
-            mov     w0, w19
+            bl      get_equipped_weapon
             bl      get_weapon_name
             mov     x1, x0
             ldr     x0, =weapon_fmt
@@ -52,7 +77,7 @@ FUNCTIONS:
 
             mov     w0, 3
             bl      loot_weapon
-            mov     w19, w0
+            bl      equip_weapon_if_better
 
 - call offer_potion when a player finds a potion; give it the potion
         type (1 or 2) in w0. If the bag has space it goes straight in
@@ -106,6 +131,9 @@ define(type_count_reg, w1) // holds given item type count
 // holds biggest type index value (type count minus 1) for RNG bounds
 define(highest_valid_type_reg, w2)
 define(typed_slot_address_reg, x9)
+
+define(equipped_address_reg, x13)
+define(equipped_type_reg, w14)
 
 BAG_SLOTS = 4
 NO_POTION = 0
@@ -165,6 +193,10 @@ potion_heal_m:   .word 0, 10, 25
     .balign 4
 bag_m:  .skip BAG_SLOTS * 4 // reserve space for bag
 typed_slot_m:  .skip 4 // reserve space for user input when swapping potions out in bag
+
+// since .bss initializes these values with 0 (meaning no item) this essentially starts the player out unequipped
+equipped_weapon_m:  .skip 4 
+equipped_armour_m:  .skip 4
 
     .text
 
@@ -468,4 +500,61 @@ offer_potion_leave:
 
 offer_potion_done:
         ldp     fp, lr, [sp], offer_potion_dealloc
+        ret
+
+
+/* these get functions help to tell other files what weapon or armour the player has equipped.
+No input, outputs the item type index of the equipped item (0-3 with 0 meaning nothing equipped)
+Overwrites x0 and x13 */
+        .balign 4
+        .global get_equipped_weapon
+get_equipped_weapon:
+        ldr     equipped_address_reg, =equipped_weapon_m
+        ldr     w0, [equipped_address_reg]
+        ret
+
+        .balign 4
+        .global get_equipped_armour
+get_equipped_armour:
+        ldr     equipped_address_reg, =equipped_armour_m
+        ldr     w0, [equipped_address_reg]
+        ret
+
+/* these equip functions can be called after a weapon or armour drop. If
+the item is better than what the player currently has it get auto-equipped
+but nothing happens if the item is worse. Input should usually come from 
+loot_weapon or loot_armour, which is the item type index of the item that
+dropped in w0. Output is the item type index that the player now has in w0,
+either the item they already had or the new one if it is better. Overwrites
+x0, x13, x14. */
+        .balign 4
+        .global equip_weapon_if_better
+equip_weapon_if_better:
+        ldr     equipped_address_reg, =equipped_weapon_m
+        b       equip_if_better
+
+        .balign 4
+        .global equip_armour_if_better
+equip_armour_if_better:
+        ldr     equipped_address_reg, =equipped_armour_m
+        b       equip_if_better
+
+/* helper function for the equip functions; compares the new and current item
+and replaces current item if new one is better. Input is the item type index
+of the new item in w0 and the address of the equipped slot in x13. Output is 
+the the item type index of whatever is equipped after the function. Item type
+indexes are ordered from weakest to strongest, so this function can just compare
+the indexes rather than the actual stat bonuses. */
+        .balign 4
+equip_if_better:
+        ldr     equipped_type_reg, [equipped_address_reg]
+        cmp     w0, equipped_type_reg
+        b.le    equip_keep_current
+        str     w0, [equipped_address_reg]
+        b       equip_done
+
+equip_keep_current:
+        mov     w0, equipped_type_reg
+
+equip_done:
         ret
