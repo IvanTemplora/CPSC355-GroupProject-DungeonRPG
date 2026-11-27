@@ -17,7 +17,6 @@ define(lr, x30)
 //need to finish
 //Player stat change function
 .global player_take_damage
-.global player_deal_damage
 .global player_change_weapon
 .global player_change_armour
 .global player_level_up
@@ -33,6 +32,10 @@ player_level:           .word 1
 player_base_defence:    .word 5
 player_weapon:          .word 0
 player_armour:          .word 0
+
+weapon_change_fmt:      .string "Weapon changed to %s\n"
+armour_change_fmt:      .string "Armour changed to %s\n"
+level_up_fmt:           .string "Player has leveled up!"
 
     .text
     .balign 4
@@ -54,7 +57,7 @@ player_init:
     //Current health
     // When initializing, set current health to max health
     ldr     x9, =player_current_health
-    mov     w10, [player_max_health]
+    mov     w10, #100
     str     w10, [x9]
 
     //Damage
@@ -93,54 +96,58 @@ player_init:
 
 get_player_curr_health:
     ldr     x9, =player_current_health
-    ldr     w0, x9
+    ldr     w0, [x9]
     ret
 
 get_player_max_health:
     ldr     x9, =player_max_health
-    ldr     w0, x9
+    ldr     w0, [x9]
     ret
 
 .extern get_weapon_damage
 get_player_damage:
-    stp     fp, lr, [sp, -16]!
+    stp     fp, lr, [sp, -32]!
     mov     fp, sp
+    str     w19, [sp, 16]
 
     //Get base damage
     ldr     x9, =player_base_damage 
-    ldr     w10, x9
+    ldr     w19, [x9]
 
     //Get weapon damage
     ldr     x9, =player_weapon
-    ldr     w0, x9
+    ldr     w0, [x9]
 
     bl      get_weapon_damage
 
     //Add Damages
-    add     w0, w0, w10
+    add     w0, w0, w19
 
-    ldp     fp, lr, [sp], 16
+    ldr     w19, [sp, 16]
+    ldp     fp, lr, [sp], 32
     ret
 
 .extern get_armour_value
 get_player_defence:
-    stp     fp, lr, [sp, -16]!
+    stp     fp, lr, [sp, -32]!
     mov     fp, sp
+    str     w19, [sp, 16]
 
     //Get base defence
     ldr     x9, =player_base_defence
-    ldr     w10, x9
+    ldr     w19, [x9]
 
     //Get armour defence
     ldr     x9, =player_armour
-    ldr     w0, x9
+    ldr     w0, [x9]
 
     bl      get_armour_value
 
     //Add defences
-    add     w0, w0, w10
+    add     w0, w0, w19
 
-    ldp     fp, lr, [sp], 16
+    ldr     w19, [sp, 16]
+    ldp     fp, lr, [sp], 32
     ret
 
 //Checks if player is alive (returns 1 if yes, 0 if no)
@@ -149,12 +156,80 @@ is_player_alive:
     ldr     w10, [x9]
 
     cmp     w10, #0
-    b.gt    alive //Goes to alive branch if health is above 0 and will return 1 (alive)
-
-    mov     w0, #0 //Else returns 0
-
+    cset    w0, gt //return 1 if alive, 0 if dead
+   
     ret
 
-alive:
-    mov     w0, #1
+player_take_damage:
+    ldr     x9, =player_current_health // Load player current health
+    ldr     w10, [x9]
+
+    sub    w10, w10, w0 //W11 = current health (w10) - damage dealth (w0)
+    str    w10, [x9] //Load new health and return
+    
+    ret
+
+.extern get_weapon_name
+player_change_weapon:
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
+
+    ldr     x9, =player_weapon // Load address of player_weapon into x9
+    str     w0, [x9] //save address of new weapon from w0 into x9 (player_weapon)
+
+    bl      get_weapon_name // Retrieve new weapon name
+
+    // Print weapon change
+    mov     x1, x0
+    ldr     x0, =weapon_change_fmt
+    bl      printf
+
+    ldp     fp, lr, [sp], 16
+    mov     w0, #0
+    ret
+
+.extern get_armour_name
+player_change_armour:
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
+
+    ldr     x9, =player_armour
+    str     w0, [x9]
+
+    bl      get_armour_name
+
+    mov     x1, x0
+    ldr     x0, =armour_change_fmt
+    bl      printf
+
+    ldp     fp, lr, [sp], 16
+    mov     w0, #0
+    ret
+
+player_level_up:
+    ldr     x9, =player_max_health
+    ldr     w10, [x9]
+    add     w10, w10, #10
+    str     w10, [x9]
+
+    ldr     x9, =player_current_health
+    ldr     w10, [x9]
+    add     w10, w10, #2
+    str     w10, [x9]
+
+    ldr     x9, =player_level
+    ldr     w10, [x9]
+    add     w10, w10, #1
+    str     w10, [x9]
+
+    ldr     x9, =player_base_damage
+    ldr     w10, [x9]
+    add     w10, w10, #3
+    str     w10, [x9]
+
+    ldr     x9, =player_base_defence
+    ldr     w10, [x9]
+    add     w10, w10, #2
+    str     w10, [x9]
+
     ret
