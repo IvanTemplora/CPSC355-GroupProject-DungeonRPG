@@ -54,16 +54,19 @@ FUNCTIONS:
             bl      loot_weapon
             mov     w19, w0
 
-- call bag_add_potion when the player picks up a potion
-        put either 1 or 2 in w0 representing potion types 1 or 2, 
-        and the function will return the slot that the potion went
-        into (1-4) or -1 if the bag is full, in w0 
+- call offer_potion when a player finds a potion; give it the potion
+        type (1 or 2) in w0. If the bag has space it goes straight in
+        but if not the function will directly handle input from the 
+        player and print out the bag and allow the player to choose
+        a bag slot for the new potion, replacing what was previously
+        there, or leave it behind. Returns the slot that the player
+        chose (1-4) or 0 if the player left it behind in w0.
 
             mov     w0, 2
             bl      loot_potion
-            bl      bag_add_potion
-            cmp     w0, -1
-            b.eq    bag_is_full
+            bl      offer_potion
+            cmp     w0, 0
+            b.eq    potion_left_behind <-- not my function, just a placeholder for what you may want to call
 
 - call bag_use_potion when the player wants to drink a potion
         this function doesnt receive the input from the player
@@ -102,6 +105,7 @@ define(potion_in_slot_reg, w12)
 define(type_count_reg, w1) // holds given item type count
 // holds biggest type index value (type count minus 1) for RNG bounds
 define(highest_valid_type_reg, w2)
+define(typed_slot_address_reg, x9)
 
 BAG_SLOTS = 4
 NO_POTION = 0
@@ -115,6 +119,10 @@ POTION_TYPES_COUNT = 3
 potion_bag_slot_s = 16
 potion_bag_alloc = -(16 + 4) & -16
 potion_bag_dealloc = -potion_bag_alloc
+
+offer_potion_type_s = 16
+offer_potion_alloc = -(16 + 4) & -16
+offer_potion_dealloc = -offer_potion_alloc
 
 loot_item_type_alloc = -16
 loot_item_type_dealloc = -loot_item_type_alloc
@@ -133,6 +141,9 @@ small_potion_name_m: .string "Small Potion"
 large_potion_name_m: .string "Large Potion"
 bag_header_fmt:      .string "Potions:\n"
 bag_slot_fmt:        .string "  [%d] %s\n" // %s is the potion name
+bag_full_fmt:        .string "The potion bag is full! You found a %s (heals %d).\n"
+swap_prompt_fmt:     .string "Choose a slot (1-4) to swap it into, replacing the potion in that slot, or 0 to leave it: "
+slot_input_fmt:      .string "%d"
 
     .data
 /* each list of items is an array; each element holds the address of an
@@ -153,6 +164,7 @@ potion_heal_m:   .word 0, 10, 25
     .bss
     .balign 4
 bag_m:  .skip BAG_SLOTS * 4 // reserve space for bag
+typed_slot_m:  .skip 4 // reserve space for user input when swapping potions out in bag
 
     .text
 
@@ -197,7 +209,6 @@ get_armour_value:
         ret
 
     .balign 4
-    .global get_potion_name
 get_potion_name:
         ldr     table_address_reg, =potion_names_m
         ldr     x0, [table_address_reg, w0, sxtw 3]
@@ -232,9 +243,7 @@ bag_wipe_test:
 bag_wipe_done:
         ret
 
-/* finds the first empty slot of the bag and puts a potion in it;
-could be used when the player picks up a potion or receives one as
-a reward. Input is an int (1 or 2) in w0 which is the potion type and
+/* Used by offer_potion Input is an int (1 or 2) in w0 which is the potion type and
 output is the slot number of the bag that the potion went into (1-4)
 or -1 if the bag is full. IMPORTANT: input is not checked
 Overwrites x0, x10, x11, x12 
@@ -242,7 +251,6 @@ note: the slot numbers are 1-4 instead of index numbers 0-3 so that
 they match what the player would type when using
 bag_use_potion, and what the slot numbers show in bag_print */
     .balign 4
-    .global bag_add_potion
 bag_add_potion:
         ldr     bag_address_reg, =bag_m
         mov     slot_index_reg, 0
@@ -402,4 +410,62 @@ loot_item_type_roll:
         add     w0, w0, 1
 
         ldp     fp, lr, [sp], loot_item_type_dealloc
+        ret
+
+/* this function gives the player a potion. If the bag has space the potion is automatically added
+to their bag, if the bag is full, the function prints the bag contents and allows the player to
+choose which potion to replace with the new potion they found, or to simply leave the potion behind.
+Input is the potion type found (1 or 2) in w0, usually coming straight from loot_potion, and the
+function also reads an int from the player. Output is the slot the potion ended up in (1-4), or 0 
+if left behind, in w0. Overwrites x0, x1, x2, x9 to x12, printf and scanf can overwrite x0-x18. */
+        .balign 4
+        .global offer_potion
+offer_potion:
+        stp     fp, lr, [sp, offer_potion_alloc]!
+        mov     fp, sp
+        str     w0, [fp, offer_potion_type_s]
+
+// just adds the potion if bag has space
+        bl      bag_add_potion
+        cmp     w0, BAG_FULL
+        b.ne    offer_potion_done
+
+// if bag is full, print information about the potion the player just found
+        ldr     w0, [fp, offer_potion_type_s]
+        bl      get_potion_name
+        mov     x1, x0
+        ldr     w0, [fp, offer_potion_type_s]
+        bl      get_potion_heal
+        mov     w2, w0
+        ldr     x0, =bag_full_fmt
+        bl      printf
+
+// show the bag for the player to be able to see if and what to replace
+        bl      bag_print
+        ldr     x0, =swap_prompt_fmt
+        bl      printf
+
+// read slot, if the player didnt type a number the potion is left
+        ldr     x0, =slot_input_fmt
+        ldr     x1, =typed_slot_m
+        bl      scanf
+        cmp     w0, 1
+        b.ne    offer_potion_leave
+
+// empty slot that the player chose
+        ldr     typed_slot_address_reg, =typed_slot_m
+        ldr     w0, [typed_slot_address_reg]
+        bl      bag_use_potion
+
+// add found potion
+        ldr     w0, [fp, offer_potion_type_s]
+        bl      bag_add_potion
+        cmp     w0, BAG_FULL
+        b.ne    offer_potion_done
+
+offer_potion_leave:
+        mov     w0, 0
+
+offer_potion_done:
+        ldp     fp, lr, [sp], offer_potion_dealloc
         ret
