@@ -3,15 +3,15 @@ enemy_dmg_fmt: .string "The %s was hit. It's health is now %d.\n"
 player_dmg_fmt: .string "The %s's attack lands. Your health is now %d.\n"
 player_heal_fmt: .string "You used a potion to heal yourself. Your health is now %d.\n"
 
-enemy_alive: .byte 0 //flag for enemy being alive
-player_alive: .byte 0 //flag for enemy being dead
-player_flee: .byte 0 //flag for player fleeing
+//enemy_alive: .byte 0 //flag for enemy being alive
+//player_alive: .byte 0 //flag for enemy being dead
+//player_flee: .byte 0 //flag for player fleeing
 
 
 .text
 
 //Takes an enemy's health and updates combat relevant flags
-.balign 4
+/*.balign 4
 .global update_flags
 update_flags:
 stp x29, x30, [sp, -16]!
@@ -27,7 +27,7 @@ strb w0, [x9] //set player_alive flag, x0 = whether player is alive or not
 
 mov x0, 0
 ldp x29, x30, [sp], 16
-ret
+ret*/
 
 //Takes an enemy type, and determines the amount of damage done to the player (including reductions based on armor bonus). Print's player's new health
 //called combat_enemy_attack to avoid naming with collision with subroutine in enemy.asm
@@ -112,7 +112,9 @@ stp x29, x30, [sp, -16]!
 mov x29, sp
 
 bl bag_use_potion //assume slot number is in x0
-bl player_heal //currently does not exist
+mov x9, -1
+mul x0, x0, x9 //x0 = -(health healed by potion)
+bl player_take_damage //player_take_damage uses sub, so health - (-(health bonus)) = health + health bonus
 
 bl get_player_curr_health
 mov w1, w0 //w1 = player current health
@@ -123,7 +125,7 @@ ldp x29, x30, [sp], 16
 ret
 
 //Checks status flags and determines if combat is over. Returns 1 if either enemy is dead or player is dead, 0 otherwise
-.balign 4
+/*.balign 4
 .global is_combat_over
 is_combat_over:
 ldr x9, =enemy_alive
@@ -135,4 +137,4 @@ ldrb w11, [x9] //w11 = is player alive
 and w9, w10, w11 //x9 = player_alive & enemy_alive
 mvn w0, w9 //w0 = ~(player_alive & enemy_alive)
 
-ret
+ret*/
