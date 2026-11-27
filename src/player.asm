@@ -4,9 +4,9 @@ define(lr, x30)
 // Player Stats
 .global player_max_health
 .global player_current_health
-.global player_damage
+.global player_base_damage
 .global player_level
-.global player_defence
+.global player_base_defence
 
 //Player get functions
 .global get_player_curr_health
@@ -14,7 +14,6 @@ define(lr, x30)
 .global get_player_damage
 .global get_player_defence
 
-//need to finish
 //Player stat change function
 .global player_take_damage
 .global player_change_weapon
@@ -25,17 +24,17 @@ define(lr, x30)
 
     .data
     .balign 4
-player_max_health:      .word 100
-player_current_health:  .word 100
-player_base_damage:     .word 15
-player_level:           .word 1
-player_base_defence:    .word 5
-player_weapon:          .word 0
+player_max_health:      .word 100   // Starting Max health = 100
+player_current_health:  .word 100   // Starting Current health = 100
+player_base_damage:     .word 12    // Starting base damage = 12
+player_level:           .word 1     // Starting player level = 1
+player_base_defence:    .word 0     // Starting base defenece = 0
+player_weapon:          .word 0     
 player_armour:          .word 0
 
 weapon_change_fmt:      .string "Weapon changed to %s\n"
 armour_change_fmt:      .string "Armour changed to %s\n"
-level_up_fmt:           .string "Player has leveled up!"
+level_up_fmt:           .string "Player has leveled up! Level is now %d\n"
 
     .text
     .balign 4
@@ -56,18 +55,17 @@ player_init:
 
     //Current health
     // When initializing, set current health to max health
-    ldr     x9, =player_current_health
-    mov     w10, #100
+    ldr     x9, =player_current_health      // Current health = max health
     str     w10, [x9]
 
     //Damage
     ldr     x9, =player_base_damage
-    mov     w10, #15
+    mov     w10, #12
     str     w10, [x9]
 
     //Defence
     ldr     x9, =player_base_defence
-    mov     w10, #10
+    mov     w10, #0
     str     w10, [x9]
 
     //Level
@@ -104,6 +102,7 @@ get_player_max_health:
     ldr     w0, [x9]
     ret
 
+// Returns base player damage + weapon damage
 .extern get_weapon_damage
 get_player_damage:
     stp     fp, lr, [sp, -32]!
@@ -117,16 +116,16 @@ get_player_damage:
     //Get weapon damage
     ldr     x9, =player_weapon
     ldr     w0, [x9]
-
     bl      get_weapon_damage
 
     //Add Damages
     add     w0, w0, w19
 
-    ldr     w19, [sp, 16]
+    ldr     x19, [sp, 16]
     ldp     fp, lr, [sp], 32
     ret
 
+// returns base player defence + armour defence
 .extern get_armour_value
 get_player_defence:
     stp     fp, lr, [sp, -32]!
@@ -140,13 +139,12 @@ get_player_defence:
     //Get armour defence
     ldr     x9, =player_armour
     ldr     w0, [x9]
-
     bl      get_armour_value
 
     //Add defences
     add     w0, w0, w19
 
-    ldr     w19, [sp, 16]
+    ldr     x19, [sp, 16]
     ldp     fp, lr, [sp], 32
     ret
 
@@ -160,6 +158,8 @@ is_player_alive:
    
     ret
 
+// Arguments: w0 (damage being taken)
+// Returns players new health
 player_take_damage:
     ldr     x9, =player_current_health // Load player current health
     ldr     w10, [x9]
@@ -169,8 +169,27 @@ player_take_damage:
     
     ret
 
+player_heal:
+    ldr     x9, =player_current_health
+    ldr     w10, [x9]
+    add     w10, w10, w0
+
+    ldr     x11, =player_max_health
+    ldr     w11, [x11]
+
+    cmp     w10, w11
+    csel    w10, w10, w11, le
+
+    str     w10, [x9]
+    mov     w0, w10
+
+    ret
+
 .extern get_weapon_name
 player_change_weapon:
+    cmp     w0, 3
+    b.hi    invalid_weapon_id
+
     stp     fp, lr, [sp, -16]!
     mov     fp, sp
 
@@ -184,12 +203,19 @@ player_change_weapon:
     ldr     x0, =weapon_change_fmt
     bl      printf
 
-    ldp     fp, lr, [sp], 16
     mov     w0, #0
+    ldp     fp, lr, [sp], 16
+    ret
+
+invalid_weapon_id:
+    mov     w0, -1
     ret
 
 .extern get_armour_name
 player_change_armour:
+    cmp     w0, 3
+    b.hi    invalid_armour_id
+
     stp     fp, lr, [sp, -16]!
     mov     fp, sp
 
@@ -202,11 +228,18 @@ player_change_armour:
     ldr     x0, =armour_change_fmt
     bl      printf
 
-    ldp     fp, lr, [sp], 16
     mov     w0, #0
+    ldp     fp, lr, [sp], 16
+    ret
+
+invalid_armour_id:
+    mov     w0, -1
     ret
 
 player_level_up:
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
+
     ldr     x9, =player_max_health
     ldr     w10, [x9]
     add     w10, w10, #10
@@ -214,7 +247,7 @@ player_level_up:
 
     ldr     x9, =player_current_health
     ldr     w10, [x9]
-    add     w10, w10, #2
+    add     w10, w10, #5
     str     w10, [x9]
 
     ldr     x9, =player_level
@@ -224,12 +257,17 @@ player_level_up:
 
     ldr     x9, =player_base_damage
     ldr     w10, [x9]
-    add     w10, w10, #3
+    add     w10, w10, #2
     str     w10, [x9]
 
     ldr     x9, =player_base_defence
     ldr     w10, [x9]
-    add     w10, w10, #2
+    add     w10, w10, #1
     str     w10, [x9]
 
+    mov     w1, w10
+    ldr     x0, =level_up_fmt:
+    bl      printf
+
+    ldp     fp, lr, [sp], 16
     ret
